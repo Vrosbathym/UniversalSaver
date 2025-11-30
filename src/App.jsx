@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Youtube, Search, Download, Music, Video, Check, AlertCircle, Loader2, Zap, ShieldCheck, Globe, Linkedin, Instagram } from 'lucide-react';
+import { Youtube, Search, Download, Music, Video, Check, AlertCircle, Loader2, Zap, ShieldCheck, Globe, Linkedin, Instagram, X } from 'lucide-react';
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -7,7 +7,11 @@ export default function App() {
   const [error, setError] = useState('');
   const [videoData, setVideoData] = useState(null);
   const [serverStatus, setServerStatus] = useState('sleeping');
+  
+  // Estado para controlar o modal de download
   const [isProcessing, setIsProcessing] = useState(false);
+  // Estado para mostrar o botão de fechar (só aparece depois de um tempo)
+  const [showCloseBtn, setShowCloseBtn] = useState(false);
   
   // URL do seu servidor Backend (Render)
   const API_BASE_URL = "https://youtube-downloader-d535.onrender.com";
@@ -32,7 +36,7 @@ export default function App() {
     setError('');
     setVideoData(null);
 
-    // Validação Universal (Aceita YouTube, Panda, Vimeo, etc.)
+    // Validação Universal
     const urlRegex = /^(https?:\/\/[^\s]+)/;
     if (!urlRegex.test(url)) {
       setError('Por favor, insira uma URL válida.');
@@ -63,30 +67,55 @@ export default function App() {
 
   const handleDownload = (qualityId) => {
     setIsProcessing(true);
+    setShowCloseBtn(false); // Esconde o botão de fechar inicialmente
+    
     const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}&quality=${qualityId}`;
     
     // Inicia o download
     window.location.href = downloadUrl;
     
-    // Remove o aviso de "Iniciando Download" após 5 segundos
+    // Agora NÃO fecha sozinho imediatamente.
+    // Espera 10 segundos e então MOSTRA o botão para o usuário fechar quando quiser.
+    // Isso evita que a janela suma antes do download começar.
     setTimeout(() => {
-        setIsProcessing(false);
-    }, 5000);
+        setShowCloseBtn(true);
+    }, 10000);
   };
 
   return (
     <div className="min-h-screen w-full bg-slate-900 text-white font-sans flex flex-col relative">
       
-      {/* Tela de Processamento (Overlay) */}
+      {/* Tela de Processamento (Overlay) - CORRIGIDA */}
       {isProcessing && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center animate-fadeIn p-4">
-          <div className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center relative overflow-hidden">
-            <div className="relative w-20 h-20 mx-auto mb-6">
-               <Loader2 className="w-20 h-20 text-blue-500 animate-spin" />
-               <Download className="absolute inset-0 m-auto w-8 h-8 text-white animate-pulse" />
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center animate-fadeIn p-4">
+          <div className="w-full max-w-md bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+            
+            {/* Animação de carregamento */}
+            <div className="relative w-24 h-24 mx-auto mb-8">
+               <div className="absolute inset-0 border-4 border-slate-600 rounded-full"></div>
+               <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+               <Download className="absolute inset-0 m-auto w-10 h-10 text-white animate-pulse" />
             </div>
-            <h3 className="text-2xl font-bold mb-2">Iniciando Download...</h3>
-            <p className="text-slate-400 text-sm">Aguarde um momento. O arquivo aparecerá no seu navegador em breve.</p>
+
+            <h3 className="text-2xl font-bold mb-4">A preparar o seu ficheiro...</h3>
+            
+            <div className="space-y-4 text-slate-300 text-sm">
+                <p>O servidor está a processar o vídeo. <br/> <span className="text-yellow-400 font-semibold">Por favor, não feche esta janela.</span></p>
+                <p className="text-xs text-slate-500">
+                    Dependendo do tamanho do vídeo, isto pode demorar de 30 segundos a alguns minutos.
+                    O download iniciará automaticamente no seu navegador assim que estiver pronto.
+                </p>
+            </div>
+
+            {/* Botão de Fechar Manual (Só aparece depois de 10s) */}
+            {showCloseBtn && (
+                <button 
+                    onClick={() => setIsProcessing(false)}
+                    className="mt-8 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors flex items-center justify-center gap-2 mx-auto w-full animate-fadeIn"
+                >
+                    <Check className="w-4 h-4" /> Já iniciou? Fechar janela
+                </button>
+            )}
           </div>
         </div>
       )}
@@ -189,7 +218,6 @@ export default function App() {
                         <Download className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
                     </button>
                 ))}
-                {/* Fallback se não vierem qualidades */}
                 {(!videoData.qualities || videoData.qualities.length === 0) && (
                     <button onClick={() => handleDownload('best')} className="w-full flex justify-between items-center p-4 bg-slate-700/50 rounded-xl hover:bg-slate-700 border border-slate-600 hover:border-blue-500/50 transition-all group">
                         <span className="font-medium text-slate-200">Melhor Qualidade</span>
