@@ -217,7 +217,7 @@ export default function App() {
       
       {/* Footer Fixo */}
       <div className="fixed bottom-4 w-full text-center pointer-events-none">
-         <p className="text-xs text-slate-600 font-medium">© 2024 TubeSaver Project</p>
+         <p className="text-xs text-slate-600 font-medium">© 2025 UniversalSaver Project</p>
       </div>
 
       <style>{`
