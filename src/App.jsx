@@ -7,7 +7,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [videoData, setVideoData] = useState(null);
   const [serverStatus, setServerStatus] = useState('sleeping');
-  const [isDownloading, setIsDownloading] = useState(false); // Novo estado para download
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [progress, setProgress] = useState(0); // Estado para a barra de progresso
   
   // URL do servidor
   const API_BASE_URL = "https://youtube-downloader-d535.onrender.com";
@@ -24,6 +25,26 @@ export default function App() {
     };
     wakeUpServer();
   }, []);
+
+  // Efeito para animar a barra de progresso
+  useEffect(() => {
+    let interval;
+    if (isDownloading) {
+      setProgress(0);
+      interval = setInterval(() => {
+        setProgress((prev) => {
+          // Aumenta rápido no início, depois desacelera perto dos 90%
+          // Isso cria a ilusão de "pensando" sem travar
+          if (prev >= 90) return prev; 
+          const increment = Math.max(1, (90 - prev) / 10);
+          return prev + increment;
+        });
+      }, 500); // Atualiza a cada meio segundo
+    } else {
+      setProgress(0);
+    }
+    return () => clearInterval(interval);
+  }, [isDownloading]);
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
@@ -59,33 +80,54 @@ export default function App() {
   };
 
   const handleDownload = (qualityId) => {
-    setIsDownloading(true); // Inicia o estado de carregamento
+    setIsDownloading(true);
     const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}&quality=${qualityId}`;
     
-    // Pequeno truque: como o download é feito pelo navegador em outra aba/janela,
-    // não temos como saber exatamente quando termina via JS simples.
-    // Vamos mostrar o loading por 5 segundos para dar feedback inicial.
+    // O truque: Redirecionar em uma nova aba/janela para não bloquear a UI atual
+    // e manter a barra de progresso visível por um tempo estimado
     window.location.href = downloadUrl;
     
+    // Mantém a tela de carregamento por 15 segundos (tempo médio para o servidor processar)
+    // Depois assume que o navegador já pegou o download
     setTimeout(() => {
-      setIsDownloading(false);
-    }, 8000); 
+      setProgress(100);
+      setTimeout(() => setIsDownloading(false), 1000);
+    }, 15000); 
   };
 
   return (
     <div className="min-h-screen w-full bg-slate-900 text-white font-sans flex flex-col relative">
       
-      {/* Overlay de Download (Aparece quando está baixando) */}
+      {/* Overlay de Download com Barra de Progresso */}
       {isDownloading && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-fadeIn">
-          <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center max-w-sm mx-4">
-            <div className="relative w-20 h-20 mx-auto mb-6">
-              <div className="absolute inset-0 border-4 border-blue-500/30 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-              <Download className="absolute inset-0 m-auto w-8 h-8 text-blue-400 animate-pulse" />
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center animate-fadeIn p-4">
+          <div className="w-full max-w-md bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+            
+            {/* Efeito de luz de fundo */}
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-pulse"></div>
+
+            <div className="relative w-24 h-24 mx-auto mb-8 bg-slate-900 rounded-full flex items-center justify-center border-4 border-slate-700">
+               <Download className="w-10 h-10 text-blue-400 animate-bounce" />
             </div>
-            <h3 className="text-2xl font-bold mb-2">Processando...</h3>
-            <p className="text-slate-400 text-sm">O seu download começará em instantes. Por favor, aguarde o servidor preparar o arquivo.</p>
+
+            <h3 className="text-2xl font-bold mb-2">Preparando o seu vídeo...</h3>
+            <p className="text-slate-400 text-sm mb-8">O servidor está processando e convertendo o arquivo. O download começará automaticamente no seu navegador.</p>
+
+            {/* Barra de Progresso */}
+            <div className="w-full bg-slate-900 rounded-full h-4 mb-2 overflow-hidden border border-slate-700">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full transition-all duration-500 ease-out relative"
+                style={{ width: `${progress}%` }}
+              >
+                  {/* Brilho animado na barra */}
+                  <div className="absolute top-0 right-0 bottom-0 w-full h-full bg-gradient-to-l from-white/20 to-transparent"></div>
+              </div>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500 font-mono">
+                <span>Processando...</span>
+                <span>{Math.round(progress)}%</span>
+            </div>
+
           </div>
         </div>
       )}
