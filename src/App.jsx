@@ -6,27 +6,22 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [videoData, setVideoData] = useState(null);
-  const [serverStatus, setServerStatus] = useState('sleeping'); // 'sleeping', 'waking', 'ready'
+  const [serverStatus, setServerStatus] = useState('sleeping');
+  const [isDownloading, setIsDownloading] = useState(false); // Novo estado para download
   
-  // URL do seu servidor no Render
+  // URL do servidor
   const API_BASE_URL = "https://youtube-downloader-d535.onrender.com";
 
-  // NOVO: Acordar o servidor assim que o site abre
   useEffect(() => {
     const wakeUpServer = async () => {
       setServerStatus('waking');
       try {
-        // Manda um pedido simples apenas para acordar a máquina
         await fetch(`${API_BASE_URL}/`); 
         setServerStatus('ready');
-        console.log("Servidor acordado e pronto!");
       } catch (e) {
-        console.log("Tentando acordar servidor...");
-        // Tenta de novo em 5 segundos se falhar
         setTimeout(wakeUpServer, 5000);
       }
     };
-
     wakeUpServer();
   }, []);
 
@@ -35,10 +30,9 @@ export default function App() {
     setError('');
     setVideoData(null);
 
-    // VALIDAÇÃO UNIVERSAL (Aceita qualquer link HTTP/HTTPS)
     const urlRegex = /^(https?:\/\/[^\s]+)/;
     if (!urlRegex.test(url)) {
-      setError('Por favor, insira uma URL válida (começando com http ou https).');
+      setError('Por favor, insira uma URL válida.');
       return;
     }
 
@@ -51,9 +45,7 @@ export default function App() {
         body: JSON.stringify({ url: url })
       });
 
-      if (!response.ok) {
-        throw new Error('O servidor está acordando ou o link não é suportado. Tente novamente.');
-      }
+      if (!response.ok) throw new Error('Erro ao conectar ao servidor.');
 
       const data = await response.json();
       if (data.error) throw new Error(data.error);
@@ -67,232 +59,114 @@ export default function App() {
   };
 
   const handleDownload = (qualityId) => {
+    setIsDownloading(true); // Inicia o estado de carregamento
     const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}&quality=${qualityId}`;
+    
+    // Pequeno truque: como o download é feito pelo navegador em outra aba/janela,
+    // não temos como saber exatamente quando termina via JS simples.
+    // Vamos mostrar o loading por 5 segundos para dar feedback inicial.
     window.location.href = downloadUrl;
+    
+    setTimeout(() => {
+      setIsDownloading(false);
+    }, 8000); 
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 text-white selection:bg-rose-500 selection:text-white flex flex-col font-sans">
+    <div className="min-h-screen w-full bg-slate-900 text-white font-sans flex flex-col relative">
       
-      {/* Background Decorativo */}
+      {/* Overlay de Download (Aparece quando está baixando) */}
+      {isDownloading && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-fadeIn">
+          <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center max-w-sm mx-4">
+            <div className="relative w-20 h-20 mx-auto mb-6">
+              <div className="absolute inset-0 border-4 border-blue-500/30 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+              <Download className="absolute inset-0 m-auto w-8 h-8 text-blue-400 animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">Processando...</h3>
+            <p className="text-slate-400 text-sm">O seu download começará em instantes. Por favor, aguarde o servidor preparar o arquivo.</p>
+          </div>
+        </div>
+      )}
+
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex-grow">
-        
-        {/* Navbar */}
-        <nav className="flex items-center justify-between py-6 mb-12">
-          <div className="flex items-center gap-2">
-            <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-2 rounded-xl shadow-lg shadow-blue-500/20">
-              <Globe className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">Universal<span className="text-blue-500">Saver</span></span>
+      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex-grow pt-8">
+        <nav className="flex items-center justify-between mb-12">
+          <div className="flex items-center gap-2 font-bold text-xl">
+            <Globe className="text-blue-500" /> UniversalSaver
           </div>
-          
-          {/* Status do Servidor Atualizado */}
-          <div className={`flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full border transition-colors duration-500 ${
-            serverStatus === 'ready' 
-              ? 'text-green-400 bg-green-900/20 border-green-800' 
-              : 'text-yellow-400 bg-yellow-900/20 border-yellow-800'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${serverStatus === 'ready' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
-            {serverStatus === 'ready' ? 'Servidor Online' : 'Iniciando Servidor...'}
+          <div className={`text-xs px-3 py-1 rounded-full border ${serverStatus === 'ready' ? 'text-green-400 border-green-800' : 'text-yellow-400 border-yellow-800'}`}>
+            {serverStatus === 'ready' ? 'Online' : 'Iniciando...'}
           </div>
         </nav>
 
-        {/* Hero Section */}
-        <div className="text-center mb-12 space-y-6">
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4">
-            Baixe vídeos de <br className="hidden md:block"/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
-              qualquer lugar.
-            </span>
-          </h1>
-          <p className="text-slate-400 text-lg max-w-xl mx-auto leading-relaxed">
-            YouTube, PandaVideo, Vimeo e muito mais. Cole o link e baixe sem complicações.
-          </p>
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">Baixe vídeos facilmente</h1>
         </div>
 
-        {/* Card de Busca */}
-        <div className="max-w-3xl mx-auto bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 p-2 rounded-2xl shadow-2xl mb-12 transform transition-all hover:scale-[1.01]">
-          <form onSubmit={handleAnalyze} className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-grow group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-12 pr-4 py-4 bg-transparent text-white placeholder-slate-500 focus:outline-none rounded-xl font-medium"
-                placeholder="Cole o link do vídeo aqui..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading || !url || serverStatus !== 'ready'} 
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Analisando</span>
-                </>
-              ) : (
-                <>
-                  <span>Baixar</span>
-                  <Zap className="w-5 h-5" />
-                </>
-              )}
+        <div className="max-w-3xl mx-auto bg-slate-800/50 p-2 rounded-2xl mb-12 backdrop-blur-sm border border-slate-700">
+          <form onSubmit={handleAnalyze} className="flex gap-2">
+            <input 
+              type="text" 
+              className="flex-grow bg-transparent px-4 outline-none text-white"
+              placeholder="Cole o link aqui..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <button disabled={loading} className="px-6 py-3 bg-blue-600 rounded-xl font-bold hover:bg-blue-500 transition-colors">
+              {loading ? <Loader2 className="animate-spin" /> : 'Baixar'}
             </button>
           </form>
-          {serverStatus !== 'ready' && (
-             <p className="text-center text-xs text-yellow-500 mt-2 animate-pulse">Aguarde, o servidor gratuito está acordando...</p>
-          )}
         </div>
 
-        {/* Mensagem de Erro */}
-        {error && (
-          <div className="max-w-3xl mx-auto mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 animate-fadeIn">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm font-medium">{error}</p>
-          </div>
-        )}
+        {error && <div className="text-red-400 text-center mb-8">{error}</div>}
 
-        {/* Área de Resultados */}
         {videoData && (
-          <div className="max-w-4xl mx-auto animate-slideUp mb-12">
-            <div className="bg-slate-800/50 backdrop-blur-md rounded-3xl overflow-hidden border border-slate-700/50 shadow-2xl">
-              
-              <div className="p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start border-b border-slate-700/50">
-                <div className="w-full md:w-64 flex-shrink-0 rounded-xl overflow-hidden shadow-lg relative aspect-video group bg-black">
-                  {videoData.thumbnail ? (
-                    <img src={videoData.thumbnail} alt="Thumbnail" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600">
-                      <Video className="w-12 h-12" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-grow space-y-3">
-                  <h3 className="text-2xl font-bold text-white leading-snug">{videoData.title || "Vídeo Detectado"}</h3>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
-                    <span className="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1 rounded-lg">
-                      <Video className="w-4 h-4 text-blue-500" /> {videoData.author || "Desconhecido"}
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-slate-900/50 px-3 py-1 rounded-lg">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" /> {videoData.duration || "N/A"}
-                    </span>
-                  </div>
-                </div>
+          <div className="max-w-4xl mx-auto bg-slate-800/50 rounded-3xl p-8 border border-slate-700 animate-fadeIn">
+            <div className="flex flex-col md:flex-row gap-8 items-center mb-8">
+              <img src={videoData.thumbnail} className="w-64 rounded-xl shadow-lg" alt="Thumb" />
+              <div>
+                <h3 className="text-2xl font-bold">{videoData.title}</h3>
+                <p className="text-slate-400">{videoData.author}</p>
               </div>
-
-              <div className="p-6 md:p-8 bg-slate-900/30">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-blue-400 font-bold text-sm tracking-wider uppercase mb-2">
-                      <Video className="w-4 h-4" /> Downloads de Vídeo
-                    </div>
-                    {videoData.qualities ? (
-                        videoData.qualities.map((quality) => (
-                        <button
-                            key={quality.id}
-                            onClick={() => handleDownload(quality.id)}
-                            className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500/50 transition-all group shadow-sm hover:shadow-blue-900/10"
-                        >
-                            <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${quality.id === 'best' ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
-                                {quality.id === 'best' ? 'HD' : (quality.id === 'worst' ? 'SD' : 'Auto')}
-                            </div>
-                            <span className="font-semibold text-slate-200">{quality.label}</span>
-                            </div>
-                            <Download className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
-                        </button>
-                        ))
-                    ) : (
-                        <button
-                            onClick={() => handleDownload('best')}
-                            className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500/50 transition-all group"
-                        >
-                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center font-bold text-sm text-white">HD</div>
-                                <span className="font-semibold text-slate-200">Melhor Qualidade</span>
-                             </div>
-                             <Download className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
-                        </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm tracking-wider uppercase mb-2">
-                      <Music className="w-4 h-4" /> Somente Áudio
-                    </div>
-                    <button
-                      onClick={() => handleDownload('audio')}
-                      className="w-full flex items-center justify-between p-4 rounded-xl bg-emerald-900/10 hover:bg-emerald-900/20 border border-emerald-500/30 hover:border-emerald-500/60 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                          <Music className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-semibold text-emerald-100">Extrair Áudio</div>
-                          <div className="text-xs text-emerald-500/60">Converter para MP3</div>
-                        </div>
-                      </div>
-                      <Download className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" />
-                    </button>
-                  </div>
-
-                </div>
-              </div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              {videoData.qualities?.map(q => (
+                <button key={q.id} onClick={() => handleDownload(q.id)} className="flex justify-between p-4 bg-slate-700 rounded-xl hover:bg-slate-600 transition-colors">
+                  <span>{q.label}</span> <Download className="w-5 h-5" />
+                </button>
+              ))}
+              <button onClick={() => handleDownload('audio')} className="flex justify-between p-4 bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-900/50 transition-colors">
+                <span>Apenas Áudio (MP3)</span> <Music className="w-5 h-5" />
+              </button>
             </div>
           </div>
         )}
-
       </div>
-      
-      {/* Footer com Assinatura */}
-      <footer className="w-full border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm mt-auto">
-        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            
+
+      <footer className="w-full border-t border-slate-800 bg-slate-900/80 backdrop-blur-md mt-auto py-8">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
-                <p className="text-slate-400 text-sm">
-                    Desenvolvido por <span className="text-white font-semibold">Vinicius de Paiva</span>
-                </p>
+                <p className="text-slate-400 text-sm">Desenvolvido por <span className="text-white font-semibold">Vinicius de Paiva</span></p>
                 <p className="text-slate-600 text-xs mt-1">© 2025 UniversalSaver Project</p>
             </div>
-
-            <div className="flex items-center gap-4">
-                <a 
-                    href="https://www.linkedin.com/in/viniciusdepaivamarti/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="p-2 bg-slate-800 rounded-full hover:bg-blue-600 text-slate-400 hover:text-white transition-all duration-300 hover:-translate-y-1"
-                    title="LinkedIn"
-                >
-                    <Linkedin className="w-5 h-5" />
-                </a>
-                <a 
-                    href="https://www.instagram.com/viniciusdpaiva_/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="p-2 bg-slate-800 rounded-full hover:bg-pink-600 text-slate-400 hover:text-white transition-all duration-300 hover:-translate-y-1"
-                    title="Instagram"
-                >
-                    <Instagram className="w-5 h-5" />
-                </a>
+            <div className="flex gap-4">
+                <a href="https://www.linkedin.com/in/viniciusdepaivamarti/" target="_blank" className="p-2 bg-slate-800 rounded-full hover:bg-blue-600 transition-colors"><Linkedin className="w-5 h-5" /></a>
+                <a href="https://www.instagram.com/viniciusdpaiva_/" target="_blank" className="p-2 bg-slate-800 rounded-full hover:bg-pink-600 transition-colors"><Instagram className="w-5 h-5" /></a>
             </div>
         </div>
       </footer>
-
+      
+      {/* Estilos para animação simples */}
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
-        .animate-slideUp { animation: slideUp 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
       `}</style>
     </div>
   );
